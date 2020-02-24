@@ -6,19 +6,22 @@
       :list="active_connections"
       @connection-editted="update_connection"
       @connection-deleted="delete_connection"
+      @connection-delete-many="delete_connection_many"
       @refresh="fetch_connections"></connection-list>
     <connection-list
       title="Pending Connections:"
       editable="true"
       :list="pending_connections"
       @connection-editted="update_connection"
-      @connection-deleted="delete_connection"></connection-list>
+      @connection-deleted="delete_connection"
+      @connection-delete-many="delete_connection_many"></connection-list>
     <connection-list
       title="Failed Connections:"
       editable="false"
       :list="failed_connections"
       @connection-editted="update_connection"
-      @connection-deleted="delete_connection"></connection-list>
+      @connection-deleted="delete_connection"
+      @connection-delete-many="delete_connection_many"></connection-list>
 
     <p>Add connection from invitation:</p>
     <el-form @submit.native.prevent>
@@ -43,6 +46,7 @@ import ConnectionList from './ConnectionList.vue';
 import share from '@/share.js';
 import message_bus from '@/message_bus.js';
 
+export const protocol = 'did:sov:BzCbsNYhMrjHiqZDTUASHg;spec/admin-connections/0.1';
 export const metadata = {
   menu: {
     label: 'Connections',
@@ -50,8 +54,18 @@ export const metadata = {
     group: 'Agent to Agent',
     priority: 30,
     required_protocols: [
-      'did:sov:BzCbsNYhMrjHiqZDTUASHg;spec/admin-connections/0.1'
+      protocol
     ]
+  },
+  types: {
+    connection: protocol + '/connection',
+    get_list: protocol + '/connection-get-list',
+    connection_list: protocol + '/connection-list',
+    update: protocol + '/update',
+    delete: protocol + '/delete',
+    delete_many: protocol + '/delete-many',
+    receive_invitation: protocol + '/receive_invitation',
+    ack: protocol + '/ack',
   }
 };
 
@@ -75,17 +89,14 @@ export const shared = {
     }
   },
   listeners: {
-    "did:sov:BzCbsNYhMrjHiqZDTUASHg;spec/admin-connections/0.1/connection-list":
-    (share, msg) => share.connections = msg.results,
-    "did:sov:BzCbsNYhMrjHiqZDTUASHg;spec/admin-connections/0.1/connection":
-    (share, msg) => share.fetch_connections(),
-    "did:sov:BzCbsNYhMrjHiqZDTUASHg;spec/admin-connections/0.1/ack":
-    (share, msg) => share.fetch_connections(),
+    [metadata.types.connection_list]: (share, msg) => share.connections = msg.results,
+    [metadata.types.connection]: (share, msg) => share.fetch_connections(),
+    [metadata.types.ack]: (share, msg) => share.fetch_connections(),
   },
   methods: {
     fetch_connections: ({send}) => {
       send({
-        "@type": "did:sov:BzCbsNYhMrjHiqZDTUASHg;spec/admin-connections/0.1/connection-get-list",
+        "@type": metadata.types.get_list
       });
     }
   }
@@ -105,7 +116,7 @@ export default {
   ],
   data: function() {
     return {
-      'invitation': '',
+      invitation: '',
     }
   },
   created: async function() {
@@ -130,7 +141,7 @@ export default {
   methods: {
     update_connection: function(form) {
       let query_msg = {
-        "@type": "did:sov:BzCbsNYhMrjHiqZDTUASHg;spec/admin-connections/0.1/update",
+        "@type": metadata.types.update,
         "connection_id": form.connection_id,
         "label": form.label,
         "role": form.role,
@@ -139,14 +150,21 @@ export default {
     },
     delete_connection: function(connection) {
       let query_msg = {
-        "@type": "did:sov:BzCbsNYhMrjHiqZDTUASHg;spec/admin-connections/0.1/delete",
+        "@type": metadata.types.delete,
         "connection_id": connection.connection_id,
+      };
+      this.send_message(query_msg);
+    },
+    delete_connection_many: function(connection_ids) {
+      let query_msg = {
+        "@type": metadata.types.delete_many,
+        "connection_ids": connection_ids,
       };
       this.send_message(query_msg);
     },
     recieve_invitation: function() {
       let receive_invite_msg = {
-        "@type": "did:sov:BzCbsNYhMrjHiqZDTUASHg;spec/admin-connections/0.1/receive-invitation",
+        "@type": metadata.types.receive_invitation,
         "invitation": this.invitation,
         "accept": "auto"
       };
